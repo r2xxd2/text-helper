@@ -23,13 +23,22 @@ You can also edit provider keys from the app's `config` panel. Provider edits ar
 ## Run
 
 ```sh
-npm start
+npm run app:run
 ```
+
+This starts the local server in the foreground. Keep that terminal open while using the app.
 
 Then open:
 
 ```txt
 http://127.0.0.1:3000
+```
+
+To stop or restart the local server:
+
+```sh
+npm run app:stop
+npm run app:restart
 ```
 
 ## Use

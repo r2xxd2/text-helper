@@ -1,5 +1,7 @@
 node_modules/
 .env
 providers.json
+.app.pid
+.app.log
 .DS_Store
 npm-debug.log*

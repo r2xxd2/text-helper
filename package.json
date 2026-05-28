@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "app:run": "bash scripts/run-app.sh",
+    "app:stop": "bash scripts/stop-app.sh",
+    "app:restart": "bash scripts/restart-app.sh"
   },
   "dependencies": {
     "express": "^5.1.0"
