@@ -1,0 +1,17 @@
+{
+  "name": "local-rewrite-tool",
+  "version": "1.0.0",
+  "description": "A local web tool for rewriting text with the OpenAI Responses API.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

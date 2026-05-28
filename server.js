@@ -1,0 +1,428 @@
+import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+loadLocalEnv(path.join(__dirname, ".env"));
+
+const app = express();
+const PORT = Number(process.env.PORT || 3000);
+const HOST = process.env.HOST || "127.0.0.1";
+const PROVIDERS_FILE = path.join(__dirname, "providers.json");
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/api/config", (_req, res) => {
+  const config = readProviderConfig();
+  res.json(toPublicConfig(config));
+});
+
+app.put("/api/providers/:id", (req, res) => {
+  const config = readProviderConfig();
+  const provider = config.providers.find((item) => item.id === req.params.id);
+
+  if (!provider) {
+    return res.status(404).json({ error: "Provider not found." });
+  }
+
+  const name = String(req.body?.name || "").trim();
+  const model = String(req.body?.model || "").trim();
+  const apiKey = String(req.body?.apiKey || "").trim();
+
+  if (!name) {
+    return res.status(400).json({ error: "Provider name is required." });
+  }
+
+  if (!model) {
+    return res.status(400).json({ error: "Model name is required." });
+  }
+
+  provider.name = name;
+  provider.model = model;
+
+  if (apiKey) {
+    provider.apiKey = apiKey;
+  }
+
+  if (req.body?.selected === true) {
+    config.activeProviderId = provider.id;
+  }
+
+  writeProviderConfig(config);
+  res.json(toPublicConfig(config));
+});
+
+app.put("/api/presets", (req, res) => {
+  const config = readProviderConfig();
+  const updates = Array.isArray(req.body?.presets) ? req.body.presets : [];
+
+  for (const update of updates) {
+    const preset = config.presets.find((item) => item.id === update?.id);
+
+    if (!preset) {
+      continue;
+    }
+
+    const name = String(update.name || "").trim();
+    const prompt = String(update.prompt || "").trim();
+
+    if (!name) {
+      return res.status(400).json({ error: "Every preset needs a name." });
+    }
+
+    if (!prompt) {
+      return res.status(400).json({ error: "Every preset needs prompt text." });
+    }
+
+    preset.name = name;
+    preset.prompt = prompt;
+  }
+
+  if (config.presets.some((preset) => preset.id === req.body?.activePresetId)) {
+    config.activePresetId = req.body.activePresetId;
+  }
+
+  writeProviderConfig(config);
+  res.json(toPublicConfig(config));
+});
+
+app.put("/api/active-preset", (req, res) => {
+  const config = readProviderConfig();
+  const preset = config.presets.find((item) => item.id === req.body?.presetId);
+
+  if (!preset) {
+    return res.status(404).json({ error: "Preset not found." });
+  }
+
+  config.activePresetId = preset.id;
+  writeProviderConfig(config);
+  res.json(toPublicConfig(config));
+});
+
+app.post("/api/rewrite", async (req, res) => {
+  const text = String(req.body?.text || "").trim();
+
+  if (!text) {
+    return res.status(400).json({ error: "Paste text to rewrite first." });
+  }
+
+  const config = readProviderConfig();
+  const provider = getActiveProvider(config);
+  const preset = getActivePreset(config, req.body?.presetId);
+
+  if (!provider) {
+    return res.status(500).json({
+      error: "Choose a provider in config before running a rewrite."
+    });
+  }
+
+  if (!provider.apiKey) {
+    return res.status(500).json({
+      error: `Missing API key for ${provider.name}. Open config, edit the provider, and save its key.`
+    });
+  }
+
+  try {
+    const response = await runRewrite(provider, text, preset.prompt);
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error:
+          data?.error?.message ||
+          "The rewrite request failed. Check your API key, model, and network connection."
+      });
+    }
+
+    const rewritten = extractProviderText(provider, data);
+
+    if (!rewritten) {
+      return res.status(502).json({
+        error: "The model returned an empty response. Try again with a shorter input."
+      });
+    }
+
+    res.json({ rewritten });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Could not reach the selected provider. Check your key, model, and network connection."
+    });
+  }
+});
+
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Rewrite tool running at http://${HOST}:${PORT}`);
+});
+
+server.on("error", (error) => {
+  console.error(`Could not start the rewrite tool: ${error.message}`);
+  process.exitCode = 1;
+});
+
+function extractResponseText(data) {
+  if (typeof data?.output_text === "string") {
+    return data.output_text.trim();
+  }
+
+  const chunks = [];
+  for (const item of data?.output || []) {
+    for (const content of item?.content || []) {
+      if (content?.type === "output_text" && typeof content.text === "string") {
+        chunks.push(content.text);
+      }
+    }
+  }
+
+  return chunks.join("").trim();
+}
+
+function extractChatCompletionText(data) {
+  return String(data?.choices?.[0]?.message?.content || "").trim();
+}
+
+function extractProviderText(provider, data) {
+  return extractChatCompletionText(data);
+}
+
+function runRewrite(provider, text, prompt) {
+  const messages = [
+    {
+      role: "system",
+      content:
+        "You rewrite user-provided text. Return only the rewritten text. Do not add explanations, labels, markdown fences, or commentary unless the user's rewrite instruction explicitly asks for them."
+    },
+    {
+      role: "user",
+      content: [
+        "Rewrite the text below using this instruction:",
+        prompt || "Improve clarity, grammar, and flow while preserving the original meaning.",
+        "",
+        "Text:",
+        text
+      ].join("\n")
+    }
+  ];
+
+  return fetch(`${provider.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${provider.apiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: provider.model,
+      messages
+    })
+  });
+}
+
+function getActiveProvider(config) {
+  return (
+    config.providers.find((provider) => provider.id === config.activeProviderId) ||
+    config.providers[0] ||
+    null
+  );
+}
+
+function getActivePreset(config, presetId) {
+  return (
+    config.presets.find((preset) => preset.id === presetId) ||
+    config.presets.find((preset) => preset.id === config.activePresetId) ||
+    config.presets[0]
+  );
+}
+
+function readProviderConfig() {
+  const defaultConfig = getDefaultProviderConfig();
+
+  if (!fs.existsSync(PROVIDERS_FILE)) {
+    return defaultConfig;
+  }
+
+  try {
+    const saved = JSON.parse(fs.readFileSync(PROVIDERS_FILE, "utf8"));
+    return normalizeProviderConfig(saved, defaultConfig);
+  } catch {
+    return defaultConfig;
+  }
+}
+
+function writeProviderConfig(config) {
+  for (const provider of config.providers) {
+    provider.selected = provider.id === config.activeProviderId;
+  }
+
+  for (const preset of config.presets) {
+    preset.selected = preset.id === config.activePresetId;
+  }
+
+  fs.writeFileSync(PROVIDERS_FILE, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+function normalizeProviderConfig(saved, defaultConfig) {
+  const providersById = new Map(
+    defaultConfig.providers.map((provider) => [provider.id, { ...provider }])
+  );
+
+  for (const provider of saved?.providers || []) {
+    if (!provider?.id || !providersById.has(provider.id)) {
+      continue;
+    }
+
+    const existing = providersById.get(provider.id);
+    providersById.set(provider.id, {
+      ...existing,
+      name: String(provider.name || existing.name).trim() || existing.name,
+      model: String(provider.model || existing.model).trim() || existing.model,
+      apiKey: String(provider.apiKey || existing.apiKey || ""),
+      selected: Boolean(provider.selected)
+    });
+  }
+
+  const providers = [...providersById.values()];
+  const activeProviderId = providers.some(
+    (provider) => provider.id === saved?.activeProviderId
+  )
+    ? saved.activeProviderId
+    : defaultConfig.activeProviderId;
+  const presetsById = new Map(
+    defaultConfig.presets.map((preset) => [preset.id, { ...preset }])
+  );
+
+  for (const preset of saved?.presets || []) {
+    if (!preset?.id || !presetsById.has(preset.id)) {
+      continue;
+    }
+
+    const existing = presetsById.get(preset.id);
+    presetsById.set(preset.id, {
+      ...existing,
+      name: String(preset.name || existing.name).trim() || existing.name,
+      prompt: String(preset.prompt || existing.prompt).trim() || existing.prompt,
+      selected: Boolean(preset.selected)
+    });
+  }
+
+  const presets = [...presetsById.values()];
+  const activePresetId = presets.some((preset) => preset.id === saved?.activePresetId)
+    ? saved.activePresetId
+    : defaultConfig.activePresetId;
+
+  return {
+    activeProviderId,
+    activePresetId,
+    providers,
+    presets
+  };
+}
+
+function toPublicConfig(config) {
+  return {
+    activeProviderId: config.activeProviderId,
+    activePresetId: config.activePresetId,
+    providers: config.providers.map((provider) => ({
+      id: provider.id,
+      name: provider.name,
+      model: provider.model,
+      selected: provider.id === config.activeProviderId,
+      hasApiKey: Boolean(provider.apiKey)
+    })),
+    presets: config.presets.map((preset) => ({
+      id: preset.id,
+      name: preset.name,
+      prompt: preset.prompt,
+      selected: preset.id === config.activePresetId
+    }))
+  };
+}
+
+function getDefaultProviderConfig() {
+  return {
+    activeProviderId: "cerebras",
+    activePresetId: "preset-1",
+    providers: [
+      {
+        id: "cerebras",
+        type: "openai-compatible",
+        name: "Cerebras GPT OSS",
+        model: process.env.CEREBRAS_MODEL || "gpt-oss-120b",
+        baseUrl: "https://api.cerebras.ai/v1",
+        apiKey: process.env.CEREBRAS_API_KEY || ""
+      },
+      {
+        id: "cerebras-glm",
+        type: "openai-compatible",
+        name: "Cerebras GLM",
+        model: process.env.CEREBRAS_GLM_MODEL || "zai-glm-4.7",
+        baseUrl: "https://api.cerebras.ai/v1",
+        apiKey: process.env.CEREBRAS_API_KEY || ""
+      }
+    ],
+    presets: [
+      {
+        id: "preset-1",
+        name: "Fix grammar",
+        prompt: "Fix grammar and spelling while preserving the original meaning."
+      },
+      {
+        id: "preset-2",
+        name: "Professional",
+        prompt: "Rewrite in a clear, professional tone while preserving the original meaning."
+      },
+      {
+        id: "preset-3",
+        name: "Shorter",
+        prompt: "Make the text shorter and easier to scan while preserving key details."
+      },
+      {
+        id: "preset-4",
+        name: "Friendlier",
+        prompt: "Rewrite in a friendly, natural tone while preserving the original meaning."
+      },
+      {
+        id: "preset-5",
+        name: "Clearer",
+        prompt: "Improve clarity, structure, and flow while preserving the original meaning."
+      }
+    ]
+  };
+}
+
+function loadLocalEnv(envPath) {
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}

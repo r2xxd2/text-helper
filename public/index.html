@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rewrite Tool</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar top-app-bar" aria-label="Rewrite controls">
+        <button id="configButton" class="button button-secondary" type="button">Config</button>
+        <div id="presetList" class="preset-list" aria-label="Rewrite presets"></div>
+        <div class="toolbar-actions">
+          <button id="cleanupButton" class="button button-secondary" type="button">Clean up</button>
+          <button id="runButton" class="button button-primary" type="button">Run</button>
+        </div>
+      </section>
+
+      <section id="configPanel" class="config-panel" hidden>
+        <div class="preset-config">
+          <div class="provider-config-header">
+            <h2>Presets</h2>
+            <button id="savePresetsButton" class="button button-primary" type="button">
+              Save presets
+            </button>
+          </div>
+          <div id="presetConfigList" class="preset-config-list"></div>
+        </div>
+        <div class="provider-config">
+          <div class="provider-config-header">
+            <h2>Providers</h2>
+            <span id="activeProviderLabel"></span>
+          </div>
+          <div id="providerList" class="provider-list"></div>
+        </div>
+        <p id="configStatus" class="status-line"></p>
+      </section>
+
+      <section class="workspace" aria-label="Rewrite workspace">
+        <div class="field-row">
+          <label class="field-shell" for="inputText">
+            <textarea
+              id="inputText"
+              class="text-field"
+              spellcheck="true"
+              aria-label="Text field to input"
+              autofocus
+            ></textarea>
+          </label>
+          <div class="side-actions" aria-label="Input actions">
+            <button id="clearInputButton" class="side-button icon-action" type="button" aria-label="Clean input" title="Clean input">
+              <span aria-hidden="true">x</span>
+            </button>
+            <button id="copyInputButton" class="side-button icon-action" type="button" aria-label="Copy input" title="Copy input">
+              <span aria-hidden="true">□</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label class="field-shell" for="outputText">
+            <textarea
+              id="outputText"
+              class="text-field"
+              spellcheck="true"
+              aria-label="Text field output"
+            ></textarea>
+          </label>
+          <div class="side-actions" aria-label="Output actions">
+            <button id="clearOutputButton" class="side-button icon-action" type="button" aria-label="Clean output" title="Clean output">
+              <span aria-hidden="true">x</span>
+            </button>
+            <button id="copyOutputButton" class="side-button icon-action" type="button" aria-label="Copy output" title="Copy output">
+              <span aria-hidden="true">□</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <p id="message" class="message" role="status" aria-live="polite"></p>
+    </main>
+
+    <dialog id="providerDialog" class="modal">
+      <form id="providerForm" method="dialog" class="modal-card">
+        <div class="modal-header">
+          <h2>Edit provider</h2>
+          <button id="closeProviderDialog" class="icon-button" type="button" aria-label="Close">
+            x
+          </button>
+        </div>
+        <input id="providerIdInput" type="hidden" />
+        <label for="providerNameInput">Name</label>
+        <input id="providerNameInput" class="text-input" type="text" autocomplete="off" />
+        <label for="providerModelInput">Model name</label>
+        <input id="providerModelInput" class="text-input" type="text" autocomplete="off" />
+        <label for="providerApiKeyInput">API key</label>
+        <input
+          id="providerApiKeyInput"
+          class="text-input"
+          type="password"
+          autocomplete="off"
+          placeholder="Leave blank to keep saved key"
+        />
+        <label class="checkbox-row">
+          <input id="providerSelectedInput" type="checkbox" />
+          Use this provider
+        </label>
+        <p id="providerDialogMessage" class="status-line"></p>
+        <div class="modal-actions">
+          <button id="cancelProviderButton" class="button button-secondary" type="button">
+            cancel
+          </button>
+          <button class="button button-primary" type="submit">save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
