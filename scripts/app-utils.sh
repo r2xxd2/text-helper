@@ -28,20 +28,31 @@ ensure_local_files() {
     {
       "id": "cerebras",
       "type": "openai-compatible",
-      "name": "Cerebras GPT OSS",
-      "model": "gpt-oss-120b",
+      "name": "Cerebras",
       "baseUrl": "https://api.cerebras.ai/v1",
       "apiKey": "",
-      "selected": true
-    },
-    {
-      "id": "cerebras-glm",
-      "type": "openai-compatible",
-      "name": "Cerebras GLM",
-      "model": "zai-glm-4.7",
-      "baseUrl": "https://api.cerebras.ai/v1",
-      "apiKey": "",
-      "selected": false
+      "selected": true,
+      "activeModelId": "model-1",
+      "models": [
+        {
+          "id": "model-1",
+          "label": "",
+          "model": "gpt-oss-120b",
+          "selected": true
+        },
+        {
+          "id": "model-2",
+          "label": "",
+          "model": "zai-glm-4.7",
+          "selected": false
+        },
+        {
+          "id": "model-3",
+          "label": "",
+          "model": "",
+          "selected": false
+        }
+      ]
     }
   ],
   "presets": [

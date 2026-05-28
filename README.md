@@ -46,8 +46,9 @@ npm run app:restart
 - Paste text into the input field.
 - Choose one of the five preset rewrite instructions.
 - Click `config` to edit each preset name and prompt text.
-- Choose a provider in the provider list. Cerebras options are included for `gpt-oss-120b` and `zai-glm-4.7`.
-- Click `edit` next to a provider to update its name, model name, or API key.
+- Choose the Cerebras provider in the provider list.
+- Use the model dropdown inside the Cerebras section to enter up to three model names manually.
+- Paste a Cerebras API key in the provider section and save it locally.
 - Click `run`.
 - Copy the rewritten result from the output field.
 

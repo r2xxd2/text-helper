@@ -254,11 +254,9 @@ textarea {
   color: var(--md-sys-color-on-surface);
 }
 
-.provider-item {
+.provider-section {
   display: grid;
-  grid-template-columns: 1fr auto;
   gap: 12px;
-  align-items: center;
   padding: 12px;
   border: 1px solid var(--md-sys-color-outline-variant);
   border-radius: 8px;
@@ -300,9 +298,48 @@ textarea {
   overflow-wrap: anywhere;
 }
 
-.provider-edit {
-  min-width: 72px;
-  padding-inline: 12px;
+.provider-api-key,
+.provider-save {
+  width: 100%;
+}
+
+.model-dropdown {
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface);
+}
+
+.model-dropdown summary {
+  cursor: pointer;
+  padding: 12px;
+  font-weight: 700;
+}
+
+.model-list {
+  display: grid;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.model-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--md-sys-color-on-surface);
+}
+
+.model-choice input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.model-choice .model-name-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding-block: 6px;
 }
 
 .status-line {
@@ -478,7 +515,7 @@ textarea {
     flex-wrap: wrap;
   }
 
-  .provider-item,
+  .provider-section,
   .provider-config-header {
     align-items: stretch;
     grid-template-columns: 1fr;

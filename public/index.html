@@ -80,42 +80,6 @@
 
       <p id="message" class="message" role="status" aria-live="polite"></p>
     </main>
-
-    <dialog id="providerDialog" class="modal">
-      <form id="providerForm" method="dialog" class="modal-card">
-        <div class="modal-header">
-          <h2>Edit provider</h2>
-          <button id="closeProviderDialog" class="icon-button" type="button" aria-label="Close">
-            x
-          </button>
-        </div>
-        <input id="providerIdInput" type="hidden" />
-        <label for="providerNameInput">Name</label>
-        <input id="providerNameInput" class="text-input" type="text" autocomplete="off" />
-        <label for="providerModelInput">Model name</label>
-        <input id="providerModelInput" class="text-input" type="text" autocomplete="off" />
-        <label for="providerApiKeyInput">API key</label>
-        <input
-          id="providerApiKeyInput"
-          class="text-input"
-          type="password"
-          autocomplete="off"
-          placeholder="Leave blank to keep saved key"
-        />
-        <label class="checkbox-row">
-          <input id="providerSelectedInput" type="checkbox" />
-          Use this provider
-        </label>
-        <p id="providerDialogMessage" class="status-line"></p>
-        <div class="modal-actions">
-          <button id="cancelProviderButton" class="button button-secondary" type="button">
-            cancel
-          </button>
-          <button class="button button-primary" type="submit">save</button>
-        </div>
-      </form>
-    </dialog>
-
     <script src="/app.js" type="module"></script>
   </body>
 </html>

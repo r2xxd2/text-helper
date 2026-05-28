@@ -30,22 +30,35 @@ app.put("/api/providers/:id", (req, res) => {
   }
 
   const name = String(req.body?.name || "").trim();
-  const model = String(req.body?.model || "").trim();
   const apiKey = String(req.body?.apiKey || "").trim();
+  const activeModelId = String(req.body?.activeModelId || "").trim();
+  const modelUpdates = Array.isArray(req.body?.models) ? req.body.models : [];
 
   if (!name) {
     return res.status(400).json({ error: "Provider name is required." });
   }
 
-  if (!model) {
-    return res.status(400).json({ error: "Model name is required." });
-  }
-
   provider.name = name;
-  provider.model = model;
 
   if (apiKey) {
     provider.apiKey = apiKey;
+  }
+
+  for (const update of modelUpdates) {
+    const model = provider.models.find((item) => item.id === update?.id);
+
+    if (!model) {
+      continue;
+    }
+
+    const modelName = String(update.model || "").trim();
+
+    model.label = "";
+    model.model = modelName;
+  }
+
+  if (provider.models.some((model) => model.id === activeModelId)) {
+    provider.activeModelId = activeModelId;
   }
 
   if (req.body?.selected === true) {
@@ -126,8 +139,22 @@ app.post("/api/rewrite", async (req, res) => {
     });
   }
 
+  const model = getActiveModel(provider);
+
+  if (!model) {
+    return res.status(500).json({
+      error: `Choose a model for ${provider.name} in config before running a rewrite.`
+    });
+  }
+
+  if (!model.model) {
+    return res.status(500).json({
+      error: `The selected model for ${provider.name} is empty. Open config, enter a model name, and save.`
+    });
+  }
+
   try {
-    const response = await runRewrite(provider, text, preset.prompt);
+    const response = await runRewrite(provider, model, text, preset.prompt);
 
     const data = await response.json().catch(() => null);
 
@@ -190,7 +217,7 @@ function extractProviderText(provider, data) {
   return extractChatCompletionText(data);
 }
 
-function runRewrite(provider, text, prompt) {
+function runRewrite(provider, model, text, prompt) {
   const messages = [
     {
       role: "system",
@@ -216,7 +243,7 @@ function runRewrite(provider, text, prompt) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: provider.model,
+      model: model.model,
       messages
     })
   });
@@ -226,6 +253,14 @@ function getActiveProvider(config) {
   return (
     config.providers.find((provider) => provider.id === config.activeProviderId) ||
     config.providers[0] ||
+    null
+  );
+}
+
+function getActiveModel(provider) {
+  return (
+    provider.models.find((model) => model.id === provider.activeModelId) ||
+    provider.models[0] ||
     null
   );
 }
@@ -256,6 +291,9 @@ function readProviderConfig() {
 function writeProviderConfig(config) {
   for (const provider of config.providers) {
     provider.selected = provider.id === config.activeProviderId;
+    for (const model of provider.models) {
+      model.selected = model.id === provider.activeModelId;
+    }
   }
 
   for (const preset of config.presets) {
@@ -266,24 +304,49 @@ function writeProviderConfig(config) {
 }
 
 function normalizeProviderConfig(saved, defaultConfig) {
+  const legacyProviders = Array.isArray(saved?.providers) ? saved.providers : [];
   const providersById = new Map(
     defaultConfig.providers.map((provider) => [provider.id, { ...provider }])
   );
 
-  for (const provider of saved?.providers || []) {
+  for (const provider of legacyProviders) {
     if (!provider?.id || !providersById.has(provider.id)) {
       continue;
     }
 
     const existing = providersById.get(provider.id);
+    const savedModels = mapSavedModels(Array.isArray(provider.models) ? provider.models : []);
+    const modelsById = new Map(existing.models.map((model) => [model.id, { ...model }]));
+
+    for (const model of savedModels) {
+      if (!model?.id || !modelsById.has(model.id)) {
+        continue;
+      }
+
+      const existingModel = modelsById.get(model.id);
+      modelsById.set(model.id, {
+        ...existingModel,
+        label: "",
+        model: String(model.model || existingModel.model).trim() || existingModel.model,
+        selected: Boolean(model.selected)
+      });
+    }
+
     providersById.set(provider.id, {
       ...existing,
-      name: String(provider.name || existing.name).trim() || existing.name,
-      model: String(provider.model || existing.model).trim() || existing.model,
+      name: normalizeProviderName(provider.name, existing.name),
       apiKey: String(provider.apiKey || existing.apiKey || ""),
+      activeModelId: existing.models.some(
+        (model) => model.id === normalizeModelId(provider.activeModelId)
+      )
+        ? normalizeModelId(provider.activeModelId)
+        : existing.activeModelId,
+      models: [...modelsById.values()],
       selected: Boolean(provider.selected)
     });
   }
+
+  migrateLegacyCerebrasModels(saved, legacyProviders, providersById);
 
   const providers = [...providersById.values()];
   const activeProviderId = providers.some(
@@ -322,6 +385,39 @@ function normalizeProviderConfig(saved, defaultConfig) {
   };
 }
 
+function mapSavedModels(models) {
+  return models.map((model, index) => ({
+    ...model,
+    id: normalizeModelId(model.id, index)
+  }));
+}
+
+function normalizeModelId(id, index = 0) {
+  if (id === "gpt-oss") {
+    return "model-1";
+  }
+
+  if (id === "glm") {
+    return "model-2";
+  }
+
+  if (id === "model-1" || id === "model-2" || id === "model-3") {
+    return id;
+  }
+
+  return `model-${Math.min(index + 1, 3)}`;
+}
+
+function normalizeProviderName(savedName, fallbackName) {
+  const name = String(savedName || fallbackName).trim() || fallbackName;
+
+  if (name === "Cerebras GPT OSS" || name === "Cerebras GLM") {
+    return "Cerebras";
+  }
+
+  return name;
+}
+
 function toPublicConfig(config) {
   return {
     activeProviderId: config.activeProviderId,
@@ -329,9 +425,15 @@ function toPublicConfig(config) {
     providers: config.providers.map((provider) => ({
       id: provider.id,
       name: provider.name,
-      model: provider.model,
       selected: provider.id === config.activeProviderId,
-      hasApiKey: Boolean(provider.apiKey)
+      hasApiKey: Boolean(provider.apiKey),
+      activeModelId: provider.activeModelId,
+      models: provider.models.map((model) => ({
+        id: model.id,
+        label: "",
+        model: model.model,
+        selected: model.id === provider.activeModelId
+      }))
     })),
     presets: config.presets.map((preset) => ({
       id: preset.id,
@@ -350,18 +452,27 @@ function getDefaultProviderConfig() {
       {
         id: "cerebras",
         type: "openai-compatible",
-        name: "Cerebras GPT OSS",
-        model: process.env.CEREBRAS_MODEL || "gpt-oss-120b",
+        name: "Cerebras",
         baseUrl: "https://api.cerebras.ai/v1",
-        apiKey: process.env.CEREBRAS_API_KEY || ""
-      },
-      {
-        id: "cerebras-glm",
-        type: "openai-compatible",
-        name: "Cerebras GLM",
-        model: process.env.CEREBRAS_GLM_MODEL || "zai-glm-4.7",
-        baseUrl: "https://api.cerebras.ai/v1",
-        apiKey: process.env.CEREBRAS_API_KEY || ""
+        apiKey: process.env.CEREBRAS_API_KEY || "",
+        activeModelId: "model-1",
+        models: [
+          {
+            id: "model-1",
+            label: "",
+            model: process.env.CEREBRAS_MODEL || "gpt-oss-120b"
+          },
+          {
+            id: "model-2",
+            label: "",
+            model: process.env.CEREBRAS_GLM_MODEL || "zai-glm-4.7"
+          },
+          {
+            id: "model-3",
+            label: "",
+            model: ""
+          }
+        ]
       }
     ],
     presets: [
@@ -392,6 +503,38 @@ function getDefaultProviderConfig() {
       }
     ]
   };
+}
+
+function migrateLegacyCerebrasModels(saved, legacyProviders, providersById) {
+  const provider = providersById.get("cerebras");
+
+  if (!provider) {
+    return;
+  }
+
+  const oldGpt = legacyProviders.find((item) => item.id === "cerebras");
+  const oldGlm = legacyProviders.find((item) => item.id === "cerebras-glm");
+
+  if (oldGpt?.apiKey || oldGlm?.apiKey) {
+    provider.apiKey = oldGpt?.apiKey || oldGlm?.apiKey;
+  }
+
+  const gptModel = provider.models.find((model) => model.id === "model-1");
+  const glmModel = provider.models.find((model) => model.id === "model-2");
+
+  if (gptModel && oldGpt?.model) {
+    gptModel.model = oldGpt.model;
+  }
+
+  if (glmModel && oldGlm?.model) {
+    glmModel.model = oldGlm.model;
+  }
+
+  if (oldGlm?.selected || saved?.activeProviderId === "cerebras-glm") {
+    provider.activeModelId = "model-2";
+  } else if (oldGpt?.selected || saved?.activeProviderId === "cerebras") {
+    provider.activeModelId = "model-1";
+  }
 }
 
 function loadLocalEnv(envPath) {
