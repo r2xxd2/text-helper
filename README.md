@@ -1,6 +1,7 @@
 # Local Rewrite Tool
 
 A small local web app for rewriting pasted text with configurable AI providers.
+![alt text](image.png)
 
 ## Setup
 
@@ -55,3 +56,15 @@ npm run app:restart
 - Review the last-request usage panel when the provider returns token usage or rate-limit headers.
 
 The app does not save rewrite history. API keys are saved locally on the server and are not sent back to the browser.
+
+## Providers
+
+| Provider | Official site | Notes |
+| --- | --- | --- |
+| Cerebras | [Cerebras Cloud](https://cloud.cerebras.ai/) | Uses an OpenAI-compatible chat completions API. |
+| Mistral | [Mistral AI Studio](https://console.mistral.ai/home) | Uses the Mistral API with manually configured model names. |
+| Cohere | [Cohere](https://cohere.com/) | Uses Cohere's OpenAI-compatible API. |
+| Groq | [GroqCloud](https://console.groq.com/home) | Uses Groq's OpenAI-compatible API. |
+| Cloudflare | [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) | Requires both an API token and Cloudflare Account ID. |
+
+Provider API keys and Cloudflare Account ID are stored only in local config files on this machine.
