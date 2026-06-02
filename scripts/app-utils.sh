@@ -111,6 +111,78 @@ ensure_local_files() {
           "selected": false
         }
       ]
+    },
+    {
+      "id": "groq",
+      "type": "openai-compatible",
+      "name": "Groq",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "apiKey": "",
+      "selected": false,
+      "activeModelId": "model-1",
+      "models": [
+        {
+          "id": "model-1",
+          "label": "",
+          "model": "",
+          "selected": true
+        },
+        {
+          "id": "model-2",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-3",
+          "label": "",
+          "model": "",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "id": "cloudflare",
+      "type": "openai-compatible",
+      "name": "Cloudflare",
+      "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1",
+      "apiKey": "",
+      "accountId": "",
+      "accountIdRequired": true,
+      "selected": false,
+      "activeModelId": "model-1",
+      "models": [
+        {
+          "id": "model-1",
+          "label": "",
+          "model": "",
+          "selected": true
+        },
+        {
+          "id": "model-2",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-3",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-4",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-5",
+          "label": "",
+          "model": "",
+          "selected": false
+        }
+      ]
     }
   ],
   "presets": [

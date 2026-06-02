@@ -46,10 +46,12 @@ npm run app:restart
 - Paste text into the input field.
 - Choose one of the five preset rewrite instructions.
 - Click `config` to edit each preset name and prompt text.
-- Choose a provider in the provider list. Cerebras, Mistral, and Cohere are available by default.
-- Use the model dropdown inside a provider section to enter up to three model names manually.
+- Choose a provider in the provider list. Cerebras, Mistral, Cohere, Groq, and Cloudflare are available by default.
+- Use the model dropdown inside a provider section to enter model names manually.
 - Paste the provider API key in its section and save it locally.
+- For Cloudflare, enter your Cloudflare Account ID too. Cloudflare has five manual model slots.
 - Click `run`.
 - Copy the rewritten result from the output field.
+- Review the last-request usage panel when the provider returns token usage or rate-limit headers.
 
 The app does not save rewrite history. API keys are saved locally on the server and are not sent back to the browser.

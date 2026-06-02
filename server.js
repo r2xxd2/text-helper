@@ -31,6 +31,7 @@ app.put("/api/providers/:id", (req, res) => {
 
   const name = String(req.body?.name || "").trim();
   const apiKey = String(req.body?.apiKey || "").trim();
+  const accountId = String(req.body?.accountId || "").trim();
   const activeModelId = String(req.body?.activeModelId || "").trim();
   const modelUpdates = Array.isArray(req.body?.models) ? req.body.models : [];
 
@@ -42,6 +43,10 @@ app.put("/api/providers/:id", (req, res) => {
 
   if (apiKey) {
     provider.apiKey = apiKey;
+  }
+
+  if (provider.accountIdRequired) {
+    provider.accountId = accountId;
   }
 
   for (const update of modelUpdates) {
@@ -153,16 +158,24 @@ app.post("/api/rewrite", async (req, res) => {
     });
   }
 
+  if (provider.accountIdRequired && !provider.accountId) {
+    return res.status(500).json({
+      error: `${provider.name} needs a Cloudflare Account ID. Open config, enter the Account ID, and save.`
+    });
+  }
+
   try {
     const response = await runRewrite(provider, model, text, preset.prompt);
 
     const data = await response.json().catch(() => null);
+    const usage = buildUsageInfo(provider, model, response, data);
 
     if (!response.ok) {
       return res.status(response.status).json({
         error:
           data?.error?.message ||
-          "The rewrite request failed. Check your API key, model, and network connection."
+          "The rewrite request failed. Check your API key, model, and network connection.",
+        usage
       });
     }
 
@@ -174,7 +187,7 @@ app.post("/api/rewrite", async (req, res) => {
       });
     }
 
-    res.json({ rewritten });
+    res.json({ rewritten, usage });
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -217,6 +230,104 @@ function extractProviderText(provider, data) {
   return extractChatCompletionText(data);
 }
 
+function buildUsageInfo(provider, model, response, data) {
+  return {
+    provider: provider.name,
+    model: model.model,
+    tokens: extractTokenUsage(data),
+    rateLimits: extractRateLimitHeaders(response.headers)
+  };
+}
+
+function extractTokenUsage(data) {
+  const usage = data?.usage || {};
+  const meta = data?.meta || {};
+  const metaTokens = meta.tokens || {};
+  const billedUnits = meta.billed_units || data?.billed_units || {};
+
+  const inputTokens = firstNumber(
+    usage.prompt_tokens,
+    usage.input_tokens,
+    metaTokens.input_tokens
+  );
+  const outputTokens = firstNumber(
+    usage.completion_tokens,
+    usage.output_tokens,
+    metaTokens.output_tokens
+  );
+  const totalTokens = firstNumber(
+    usage.total_tokens,
+    addOptionalNumbers(inputTokens, outputTokens)
+  );
+  const billedInputTokens = firstNumber(billedUnits.input_tokens);
+  const billedOutputTokens = firstNumber(billedUnits.output_tokens);
+
+  if (
+    inputTokens === null &&
+    outputTokens === null &&
+    totalTokens === null &&
+    billedInputTokens === null &&
+    billedOutputTokens === null
+  ) {
+    return null;
+  }
+
+  return {
+    input: inputTokens,
+    output: outputTokens,
+    total: totalTokens,
+    billedInput: billedInputTokens,
+    billedOutput: billedOutputTokens
+  };
+}
+
+function extractRateLimitHeaders(headers) {
+  const rateLimits = [];
+
+  for (const [name, value] of headers.entries()) {
+    const lowerName = name.toLowerCase();
+
+    if (!lowerName.startsWith("x-ratelimit-") && !lowerName.startsWith("ratelimit-")) {
+      continue;
+    }
+
+    rateLimits.push({
+      name: lowerName,
+      label: formatHeaderLabel(lowerName),
+      value
+    });
+  }
+
+  return rateLimits.sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function formatHeaderLabel(name) {
+  return name
+    .replace(/^x-ratelimit-/, "")
+    .replace(/^ratelimit-/, "")
+    .split("-")
+    .map((part) => part.toUpperCase())
+    .join(" ");
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function addOptionalNumbers(left, right) {
+  if (typeof left !== "number" || typeof right !== "number") {
+    return null;
+  }
+
+  return left + right;
+}
+
 function runRewrite(provider, model, text, prompt) {
   const messages = [
     {
@@ -236,7 +347,7 @@ function runRewrite(provider, model, text, prompt) {
     }
   ];
 
-  return fetch(`${provider.baseUrl}/chat/completions`, {
+  return fetch(`${resolveProviderBaseUrl(provider)}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${provider.apiKey}`,
@@ -247,6 +358,14 @@ function runRewrite(provider, model, text, prompt) {
       messages
     })
   });
+}
+
+function resolveProviderBaseUrl(provider) {
+  if (!provider.accountId) {
+    return provider.baseUrl;
+  }
+
+  return provider.baseUrl.replace("{accountId}", encodeURIComponent(provider.accountId));
 }
 
 function getActiveProvider(config) {
@@ -336,6 +455,11 @@ function normalizeProviderConfig(saved, defaultConfig) {
       ...existing,
       name: normalizeProviderName(provider.name, existing.name),
       apiKey: String(provider.apiKey || existing.apiKey || ""),
+      ...(existing.accountIdRequired
+        ? {
+            accountId: String(provider.accountId || existing.accountId || "").trim()
+          }
+        : {}),
       activeModelId: existing.models.some(
         (model) => model.id === normalizeModelId(provider.activeModelId)
       )
@@ -401,11 +525,17 @@ function normalizeModelId(id, index = 0) {
     return "model-2";
   }
 
-  if (id === "model-1" || id === "model-2" || id === "model-3") {
+  if (
+    id === "model-1" ||
+    id === "model-2" ||
+    id === "model-3" ||
+    id === "model-4" ||
+    id === "model-5"
+  ) {
     return id;
   }
 
-  return `model-${Math.min(index + 1, 3)}`;
+  return `model-${Math.min(index + 1, 5)}`;
 }
 
 function normalizeProviderName(savedName, fallbackName) {
@@ -413,6 +543,10 @@ function normalizeProviderName(savedName, fallbackName) {
 
   if (name === "Cerebras GPT OSS" || name === "Cerebras GLM") {
     return "Cerebras";
+  }
+
+  if (name === "Cloudflare Workers AI") {
+    return "Cloudflare";
   }
 
   return name;
@@ -427,6 +561,8 @@ function toPublicConfig(config) {
       name: provider.name,
       selected: provider.id === config.activeProviderId,
       hasApiKey: Boolean(provider.apiKey),
+      accountId: provider.accountId,
+      accountIdRequired: Boolean(provider.accountIdRequired),
       activeModelId: provider.activeModelId,
       models: provider.models.map((model) => ({
         id: model.id,
@@ -519,6 +655,68 @@ function getDefaultProviderConfig() {
           },
           {
             id: "model-3",
+            label: "",
+            model: ""
+          }
+        ]
+      },
+      {
+        id: "groq",
+        type: "openai-compatible",
+        name: "Groq",
+        baseUrl: "https://api.groq.com/openai/v1",
+        apiKey: process.env.GROQ_API_KEY || "",
+        activeModelId: "model-1",
+        models: [
+          {
+            id: "model-1",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-2",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-3",
+            label: "",
+            model: ""
+          }
+        ]
+      },
+      {
+        id: "cloudflare",
+        type: "openai-compatible",
+        name: "Cloudflare",
+        baseUrl: "https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1",
+        apiKey: process.env.CLOUDFLARE_API_KEY || "",
+        accountId: process.env.CLOUDFLARE_ACCOUNT_ID || "",
+        accountIdRequired: true,
+        activeModelId: "model-1",
+        models: [
+          {
+            id: "model-1",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-2",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-3",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-4",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-5",
             label: "",
             model: ""
           }

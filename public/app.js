@@ -10,6 +10,10 @@ const message = document.querySelector("#message");
 const runButton = document.querySelector("#runButton");
 const providerList = document.querySelector("#providerList");
 const activeProviderLabel = document.querySelector("#activeProviderLabel");
+const providerSelect = document.querySelector("#providerSelect");
+const usagePanel = document.querySelector("#usagePanel");
+const usageProvider = document.querySelector("#usageProvider");
+const usageDetails = document.querySelector("#usageDetails");
 
 let appConfig = {
   activeProviderId: "",
@@ -21,6 +25,7 @@ let appConfig = {
 document.querySelector("#cleanupButton").addEventListener("click", () => {
   inputText.value = "";
   outputText.value = "";
+  clearUsage();
   setMessage("Cleaned input and output.");
   inputText.focus();
 });
@@ -33,6 +38,7 @@ document.querySelector("#clearInputButton").addEventListener("click", () => {
 
 document.querySelector("#clearOutputButton").addEventListener("click", () => {
   outputText.value = "";
+  clearUsage();
   setMessage("Output cleaned.");
 });
 
@@ -56,6 +62,7 @@ configButton.addEventListener("click", () => {
 
 runButton.addEventListener("click", rewriteText);
 savePresetsButton.addEventListener("click", savePresets);
+providerSelect.addEventListener("change", () => selectProviderFromToolbar());
 
 inputText.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -73,6 +80,7 @@ async function loadConfig() {
     renderPresets();
     renderPresetConfig();
     renderProviders();
+    renderProviderSelect();
   } catch {
     configStatus.textContent = "Could not load server config.";
   }
@@ -150,6 +158,7 @@ async function selectPreset(presetId) {
     renderPresets();
     renderPresetConfig();
     renderProviders();
+    renderProviderSelect();
     setMessage("");
   } catch (error) {
     setMessage(error.message || "Could not select preset.", "error");
@@ -202,6 +211,7 @@ async function savePresets() {
     renderPresets();
     renderPresetConfig();
     renderProviders();
+    renderProviderSelect();
     setMessage("Presets saved.", "success");
   } catch (error) {
     setMessage(error.message || "Could not save presets.", "error");
@@ -258,6 +268,15 @@ function renderProviders() {
       ? "API key saved - leave blank to keep it"
       : "Paste API key";
 
+    const accountIdInput = document.createElement("input");
+    if (provider.accountIdRequired) {
+      accountIdInput.className = "text-input provider-account-id";
+      accountIdInput.type = "text";
+      accountIdInput.value = provider.accountId || "";
+      accountIdInput.autocomplete = "off";
+      accountIdInput.placeholder = "Cloudflare Account ID";
+    }
+
     const models = document.createElement("details");
     models.className = "model-dropdown";
 
@@ -282,6 +301,7 @@ function renderProviders() {
           selected: true,
           activeModelId: model.id,
           apiKey: apiKeyInput.value.trim(),
+          accountId: accountIdInput.value?.trim() || "",
           models: collectProviderModels(item)
         })
       );
@@ -313,12 +333,17 @@ function renderProviders() {
       saveProviderSection(provider.id, {
         selected: provider.selected,
         apiKey: apiKeyInput.value.trim(),
+        accountId: accountIdInput.value?.trim() || "",
         activeModelId: getCheckedModelId(item) || provider.activeModelId,
         models: collectProviderModels(item)
       })
     );
 
-    item.append(choice, apiKeyInput, models, saveButton);
+    if (provider.accountIdRequired) {
+      item.append(choice, apiKeyInput, accountIdInput, models, saveButton);
+    } else {
+      item.append(choice, apiKeyInput, models, saveButton);
+    }
     providerList.append(item);
   }
 
@@ -331,9 +356,44 @@ function renderProviders() {
   }
 }
 
+function renderProviderSelect() {
+  providerSelect.innerHTML = "";
+
+  for (const provider of appConfig.providers) {
+    const option = document.createElement("option");
+    option.value = provider.id;
+    option.textContent = provider.name;
+    option.selected = provider.selected;
+    providerSelect.append(option);
+  }
+
+  providerSelect.disabled = !appConfig.providers.length;
+}
+
+async function selectProviderFromToolbar() {
+  const providerId = providerSelect.value;
+
+  if (!providerId) {
+    return;
+  }
+
+  providerSelect.disabled = true;
+
+  try {
+    await saveProviderSection(providerId, { selected: true }, { message: false });
+    setMessage("");
+  } catch (error) {
+    setMessage(error.message || "Could not select provider.", "error");
+    renderProviderSelect();
+  } finally {
+    providerSelect.disabled = false;
+  }
+}
+
 async function selectProvider(providerId) {
   try {
     await saveProviderSection(providerId, { selected: true });
+    renderProviderSelect();
   } catch (error) {
     setMessage(error.message || "Could not select provider.", "error");
   }
@@ -350,6 +410,7 @@ async function saveProviderSection(providerId, overrides = {}, options = {}) {
     selected: overrides.selected ?? provider.selected,
     activeModelId: overrides.activeModelId || provider.activeModelId,
     apiKey: overrides.apiKey || "",
+    accountId: overrides.accountId ?? provider.accountId ?? "",
     models:
       overrides.models ||
       provider.models.map((model) => ({
@@ -380,6 +441,8 @@ async function saveVisibleProviders() {
         selected: provider.selected,
         activeModelId: getCheckedModelId(providerSection) || provider.activeModelId,
         apiKey: providerSection.querySelector(".provider-api-key").value.trim(),
+        accountId:
+          providerSection.querySelector(".provider-account-id")?.value.trim() || "",
         models: collectProviderModels(providerSection)
       },
       { render: false, message: false }
@@ -427,6 +490,7 @@ async function updateProvider(providerId, payload, options = {}) {
     renderPresets();
     renderPresetConfig();
     renderProviders();
+    renderProviderSelect();
   }
 }
 
@@ -443,6 +507,7 @@ async function rewriteText() {
   runButton.disabled = true;
   runButton.textContent = "Running";
   outputText.value = "";
+  clearUsage();
   setMessage("Rewriting...");
 
   try {
@@ -460,10 +525,12 @@ async function rewriteText() {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      renderUsage(data.usage);
       throw new Error(data.error || "Rewrite failed.");
     }
 
     outputText.value = data.rewritten || "";
+    renderUsage(data.usage);
     setMessage("Rewrite ready.", "success");
     outputText.focus();
   } catch (error) {
@@ -491,4 +558,88 @@ async function copyText(text, successMessage) {
 function setMessage(text, type = "") {
   message.textContent = text;
   message.className = `message ${type}`.trim();
+}
+
+function renderUsage(usage) {
+  usageDetails.innerHTML = "";
+
+  if (!usage) {
+    clearUsage();
+    return;
+  }
+
+  const items = [];
+
+  if (usage.tokens) {
+    items.push(...buildTokenItems(usage.tokens));
+  }
+
+  for (const rateLimit of usage.rateLimits || []) {
+    items.push({
+      label: rateLimit.label,
+      value: rateLimit.value
+    });
+  }
+
+  if (!items.length) {
+    clearUsage();
+    return;
+  }
+
+  usageProvider.textContent = [usage.provider, usage.model].filter(Boolean).join(" / ");
+
+  for (const item of items) {
+    const detail = document.createElement("div");
+    detail.className = "usage-item";
+
+    const label = document.createElement("span");
+    label.textContent = item.label;
+
+    const value = document.createElement("strong");
+    value.textContent = item.value;
+
+    detail.append(label, value);
+    usageDetails.append(detail);
+  }
+
+  usagePanel.hidden = false;
+}
+
+function buildTokenItems(tokens) {
+  return [
+    {
+      label: "Input tokens",
+      value: formatUsageNumber(tokens.input)
+    },
+    {
+      label: "Output tokens",
+      value: formatUsageNumber(tokens.output)
+    },
+    {
+      label: "Total tokens",
+      value: formatUsageNumber(tokens.total)
+    },
+    {
+      label: "Billed input",
+      value: formatUsageNumber(tokens.billedInput)
+    },
+    {
+      label: "Billed output",
+      value: formatUsageNumber(tokens.billedOutput)
+    }
+  ].filter((item) => item.value !== "");
+}
+
+function formatUsageNumber(value) {
+  if (typeof value !== "number") {
+    return "";
+  }
+
+  return new Intl.NumberFormat().format(value);
+}
+
+function clearUsage() {
+  usagePanel.hidden = true;
+  usageProvider.textContent = "";
+  usageDetails.innerHTML = "";
 }

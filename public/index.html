@@ -9,7 +9,10 @@
   <body>
     <main class="app-shell">
       <section class="toolbar top-app-bar" aria-label="Rewrite controls">
-        <button id="configButton" class="button button-secondary" type="button">Config</button>
+        <div class="toolbar-start">
+          <button id="configButton" class="button button-secondary" type="button">Config</button>
+          <select id="providerSelect" class="provider-select" aria-label="Provider"></select>
+        </div>
         <div id="presetList" class="preset-list" aria-label="Rewrite presets"></div>
         <div class="toolbar-actions">
           <button id="cleanupButton" class="button button-secondary" type="button">Clean up</button>
@@ -34,6 +37,13 @@
           </div>
           <div id="providerList" class="provider-list"></div>
         </div>
+        <section id="usagePanel" class="usage-panel" aria-label="Last request usage" hidden>
+          <div class="usage-header">
+            <span>Last request</span>
+            <span id="usageProvider"></span>
+          </div>
+          <div id="usageDetails" class="usage-details"></div>
+        </section>
         <p id="configStatus" class="status-line"></p>
       </section>
 
