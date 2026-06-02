@@ -519,6 +519,10 @@ function migrateLegacyCerebrasModels(saved, legacyProviders, providersById) {
     provider.apiKey = oldGpt?.apiKey || oldGlm?.apiKey;
   }
 
+  if (Array.isArray(oldGpt?.models) && !oldGlm) {
+    return;
+  }
+
   const gptModel = provider.models.find((model) => model.id === "model-1");
   const glmModel = provider.models.find((model) => model.id === "model-2");
 

@@ -170,6 +170,13 @@ async function savePresets() {
     return;
   }
 
+  try {
+    await saveVisibleProviders();
+  } catch (error) {
+    setMessage(error.message || "Could not save provider model selection.", "error");
+    return;
+  }
+
   savePresetsButton.disabled = true;
   savePresetsButton.textContent = "Saving";
 
@@ -268,6 +275,7 @@ function renderProviders() {
 
       const modelCheckbox = document.createElement("input");
       modelCheckbox.type = "checkbox";
+      modelCheckbox.dataset.modelId = model.id;
       modelCheckbox.checked = model.selected;
       modelCheckbox.addEventListener("change", () =>
         saveProviderSection(provider.id, {
@@ -305,6 +313,7 @@ function renderProviders() {
       saveProviderSection(provider.id, {
         selected: provider.selected,
         apiKey: apiKeyInput.value.trim(),
+        activeModelId: getCheckedModelId(item) || provider.activeModelId,
         models: collectProviderModels(item)
       })
     );
@@ -330,7 +339,7 @@ async function selectProvider(providerId) {
   }
 }
 
-async function saveProviderSection(providerId, overrides = {}) {
+async function saveProviderSection(providerId, overrides = {}, options = {}) {
   const provider = appConfig.providers.find((item) => item.id === providerId);
   if (!provider) {
     return;
@@ -350,8 +359,37 @@ async function saveProviderSection(providerId, overrides = {}) {
       }))
   };
 
-  await updateProvider(provider.id, payload);
-  setMessage("Provider configuration saved.", "success");
+  await updateProvider(provider.id, payload, { render: options.render !== false });
+  if (options.message !== false) {
+    setMessage("Provider configuration saved.", "success");
+  }
+}
+
+async function saveVisibleProviders() {
+  for (const providerSection of providerList.querySelectorAll(".provider-section")) {
+    const providerId = providerSection.dataset.providerId;
+    const provider = appConfig.providers.find((item) => item.id === providerId);
+
+    if (!provider) {
+      continue;
+    }
+
+    await saveProviderSection(
+      providerId,
+      {
+        selected: provider.selected,
+        activeModelId: getCheckedModelId(providerSection) || provider.activeModelId,
+        apiKey: providerSection.querySelector(".provider-api-key").value.trim(),
+        models: collectProviderModels(providerSection)
+      },
+      { render: false, message: false }
+    );
+  }
+}
+
+function getCheckedModelId(providerSection) {
+  return providerSection.querySelector('.model-choice input[type="checkbox"]:checked')
+    ?.dataset.modelId;
 }
 
 function collectProviderModels(providerSection) {
@@ -369,7 +407,7 @@ function collectProviderModels(providerSection) {
   });
 }
 
-async function updateProvider(providerId, payload) {
+async function updateProvider(providerId, payload, options = {}) {
   const response = await fetch(`/api/providers/${providerId}`, {
     method: "PUT",
     headers: {
@@ -385,9 +423,11 @@ async function updateProvider(providerId, payload) {
   }
 
   appConfig = data;
-  renderPresets();
-  renderPresetConfig();
-  renderProviders();
+  if (options.render !== false) {
+    renderPresets();
+    renderPresetConfig();
+    renderProviders();
+  }
 }
 
 async function rewriteText() {
