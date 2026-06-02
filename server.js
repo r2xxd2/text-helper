@@ -473,6 +473,31 @@ function getDefaultProviderConfig() {
             model: ""
           }
         ]
+      },
+      {
+        id: "mistral",
+        type: "openai-compatible",
+        name: "Mistral",
+        baseUrl: "https://api.mistral.ai/v1",
+        apiKey: process.env.MISTRAL_API_KEY || "",
+        activeModelId: "model-1",
+        models: [
+          {
+            id: "model-1",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-2",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-3",
+            label: "",
+            model: ""
+          }
+        ]
       }
     ],
     presets: [

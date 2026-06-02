@@ -53,6 +53,35 @@ ensure_local_files() {
           "selected": false
         }
       ]
+    },
+    {
+      "id": "mistral",
+      "type": "openai-compatible",
+      "name": "Mistral",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "apiKey": "",
+      "selected": false,
+      "activeModelId": "model-1",
+      "models": [
+        {
+          "id": "model-1",
+          "label": "",
+          "model": "",
+          "selected": true
+        },
+        {
+          "id": "model-2",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-3",
+          "label": "",
+          "model": "",
+          "selected": false
+        }
+      ]
     }
   ],
   "presets": [
