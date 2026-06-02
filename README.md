@@ -46,7 +46,7 @@ npm run app:restart
 - Paste text into the input field.
 - Choose one of the five preset rewrite instructions.
 - Click `config` to edit each preset name and prompt text.
-- Choose a provider in the provider list. Cerebras and Mistral are available by default.
+- Choose a provider in the provider list. Cerebras, Mistral, and Cohere are available by default.
 - Use the model dropdown inside a provider section to enter up to three model names manually.
 - Paste the provider API key in its section and save it locally.
 - Click `run`.

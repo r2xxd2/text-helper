@@ -498,6 +498,31 @@ function getDefaultProviderConfig() {
             model: ""
           }
         ]
+      },
+      {
+        id: "cohere",
+        type: "openai-compatible",
+        name: "Cohere",
+        baseUrl: "https://api.cohere.ai/compatibility/v1",
+        apiKey: process.env.COHERE_API_KEY || "",
+        activeModelId: "model-1",
+        models: [
+          {
+            id: "model-1",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-2",
+            label: "",
+            model: ""
+          },
+          {
+            id: "model-3",
+            label: "",
+            model: ""
+          }
+        ]
       }
     ],
     presets: [

@@ -82,6 +82,35 @@ ensure_local_files() {
           "selected": false
         }
       ]
+    },
+    {
+      "id": "cohere",
+      "type": "openai-compatible",
+      "name": "Cohere",
+      "baseUrl": "https://api.cohere.ai/compatibility/v1",
+      "apiKey": "",
+      "selected": false,
+      "activeModelId": "model-1",
+      "models": [
+        {
+          "id": "model-1",
+          "label": "",
+          "model": "",
+          "selected": true
+        },
+        {
+          "id": "model-2",
+          "label": "",
+          "model": "",
+          "selected": false
+        },
+        {
+          "id": "model-3",
+          "label": "",
+          "model": "",
+          "selected": false
+        }
+      ]
     }
   ],
   "presets": [
